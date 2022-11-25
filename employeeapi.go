@@ -52,8 +52,6 @@ func GetEmployeeDetails(w http.ResponseWriter, r *http.Request) {
 	}
 	respBody, _ := json.Marshal(employees)
 	w.Write(respBody)
-	//json.NewEncoder(w).Encode(employees)
-
 }
 
 func GetEmployeeDetailsById(w http.ResponseWriter, r *http.Request) {
