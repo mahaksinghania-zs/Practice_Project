@@ -3,12 +3,18 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	_ "github.com/go-sql-driver/mysql"
+	uuid2 "github.com/google/uuid"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 )
+
+type ResponseMessage struct {
+	message string
+}
 
 type Department struct {
 	DeptId   string `json:"deptid"`
@@ -70,15 +76,42 @@ func CreateEmployee(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	req, _ := ioutil.ReadAll(r.Body)
 	_ = json.Unmarshal(req, &emp)
-	//fmt.Println(r.Body, req, emp)
-	_, err := Db.Exec("insert into employee (Id, NAME,DepartmentID,PHONE) values (UUID(),?,?,?)", emp.Name, emp.DeptDetails.DeptId, emp.PhoneNo)
+
+	emp.Id = uuid2.NewString()
+	_, err := Db.Exec("insert into employee (ID, NAME,DepartmentID,PHONE) values (?,?,?,?)", emp.Id, emp.Name, emp.DeptDetails.DeptId,
+		emp.PhoneNo)
 	if err != nil {
-		_, _ = io.WriteString(w, "Data already Exists"+err.Error())
-	} else {
-		w.WriteHeader(http.StatusCreated)
-		_, _ = io.WriteString(w, "Data added successfully")
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = io.WriteString(w, "err")
 	}
+
+	w.WriteHeader(http.StatusCreated)
+	_, _ = io.WriteString(w, "Success")
 }
+
+//func CreateEmployee(w http.ResponseWriter, r *http.Request) {
+//	var emp Employee
+//	w.Header().Set("Content-Type", "application/json")
+//	req, _ := ioutil.ReadAll(r.Body)
+//	_ = json.Unmarshal(req, &emp)
+//	//fmt.Println(r.Body, req, emp)
+//	_, err := Db.Exec("insert into employee (Id, NAME,DepartmentID,PHONE) values (UUID(),?,?,?)", emp.Name, emp.DeptDetails.DeptId, emp.PhoneNo)
+//	if err != nil {
+//
+//		//w.WriteHeader(http.StatusInternalServerError)
+//		//response, _ := json.Marshal(ResponseMessage{"Data already Exists: " + err.Error()})
+//		//w.Write(response)
+//		_, _ = io.WriteString(w, err.Error())
+//	} else {
+//		//w.WriteHeader(http.StatusCreated)
+//		//response, _ := json.Marshal(ResponseMessage{"Data added successfully "})
+//		//w.Write(response)
+//
+//		w.WriteHeader(http.StatusCreated)
+//		_, _ = io.WriteString(w, "Data added successfully")
+//	}
+//}
 
 func GetDepartmentDetails(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -107,6 +140,7 @@ func GetDepartmentDetailsById(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var ID = r.URL.Query().Get("id")
 	//var oneEmp Employee
+
 	result := Db.QueryRow("SELECT * FROM  department WHERE department.Id =?", ID)
 
 	var dept Department
@@ -123,35 +157,41 @@ func CreateDepartment(w http.ResponseWriter, r *http.Request) {
 	var dept Department
 	w.Header().Set("Content-Type", "application/json")
 	req, _ := ioutil.ReadAll(r.Body)
-	_ = json.Unmarshal(req, &dept)
-	_, err := Db.Exec("insert into department (Id, NAME) values (UUID(),?)", dept.DeptName)
-
-	if err != nil {
-		_, _ = io.WriteString(w, "Data already Exists")
-	} else {
-		w.WriteHeader(http.StatusCreated)
-		_, _ = io.WriteString(w, "Data added successfully")
+	if err := json.Unmarshal(req, &dept); err != nil {
+		log.Println("Error is : ", err)
 	}
+
+	id := uuid2.NewString()
+	_, err := Db.Exec("insert into department (ID, NAME) values (?,?)", id, dept.DeptName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = io.WriteString(w, "Some error")
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	_, _ = io.WriteString(w, "Success")
 }
+
 func connect() {
-	var err error
-	Db, err = sql.Open("mysql",
+	Db, err := sql.Open("mysql",
 		"mahak:mahak#1234@tcp(127.0.0.1:3306)/sample_db")
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	err = Db.Ping()
-	if err != nil {
+
+	if err := Db.Ping(); err != nil {
 		log.Println(err)
 
 		return
 	}
 }
-func main() {
 
+func main() {
 	connect()
 	defer Db.Close()
+
+	//h := NewHandle(Db)
 
 	http.HandleFunc("/employees", GetEmployeeDetails)
 	http.HandleFunc("/depts", GetDepartmentDetails)
@@ -160,5 +200,4 @@ func main() {
 	http.HandleFunc("/department", CreateDepartment)
 	http.HandleFunc("/employeee", CreateEmployee)
 	log.Fatal(http.ListenAndServe(":8081", nil))
-
 }
